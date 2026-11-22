@@ -85,6 +85,21 @@ label{display:block;font-size:13px;color:var(--samar);margin:12px 0 5px}
 .bukti{display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;font-weight:500;color:var(--indigo);background:var(--kabut);padding:3px 9px;border-radius:99px;text-decoration:none}
 .bukti:hover{background:#DCE1F2}.bukti.up{color:var(--samar)}
 [hidden]{display:none!important}
+button.bukti{border:0;cursor:pointer;font-family:inherit}
+dialog.lb{border:0;border-radius:22px;padding:0;width:min(94vw,720px);max-width:94vw;background:var(--kertas);color:var(--tinta);overflow:hidden;margin:auto}
+dialog.lb::backdrop{background:rgba(22,24,58,.72)}
+.lb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--garis)}
+.lb-head b{font-family:var(--display);font-size:17px}
+.lb-head small{display:block;color:var(--samar);font-size:13px;margin-top:2px;overflow-wrap:anywhere}
+.tutup{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--kabut);color:var(--tinta);font-size:20px;line-height:1;cursor:pointer}
+.tutup:hover{background:#DCE1F2}
+.lb-body{background:var(--kabut);display:grid;place-items:center;min-height:180px;max-height:72vh;overflow:auto}
+.lb-body img{max-width:100%;max-height:72vh;display:block}
+.lb-body iframe{width:100%;height:68vh;border:0}
+.lb-load{color:var(--samar);padding:48px 16px}
+.lb-foot:empty{display:none}
+.lb-foot{padding:12px 16px;display:flex;justify-content:flex-end;border-top:1px solid var(--garis)}
+.lb-foot a{color:var(--indigo);font-weight:500;font-size:14px}
 .simpan{margin-top:18px;width:100%;border:0;border-radius:14px;padding:14px;background:var(--aksen);color:#fff;font-weight:700;font-size:16px;cursor:pointer;transition:transform .12s,filter .12s}
 .simpan:hover{filter:brightness(1.06)}.simpan:active{transform:scale(.98)}
 
@@ -165,6 +180,11 @@ label{display:block;font-size:13px;color:var(--samar);margin:12px 0 5px}
     <div id="daftar"></div>
   </section>
 </div>
+<dialog class="lb" id="lb" aria-labelledby="lbJudul">
+  <div class="lb-head"><div><b id="lbJudul"></b><small id="lbInfo"></small></div><button type="button" class="tutup" id="lbTutup" aria-label="Tutup">×</button></div>
+  <div class="lb-body" id="lbBody"></div>
+  <div class="lb-foot" id="lbFoot"></div>
+</dialog>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -200,7 +220,7 @@ let buktiData = null;
 const IKON_BUKTI = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l9-9a3.3 3.3 0 0 1 4.7 4.7l-9 9a1.7 1.7 0 0 1-2.4-2.4l8.3-8.3"/></svg>';
 
 const simpanLokal = () => { try { localStorage.setItem('catatan_uang', JSON.stringify(items.map(({buktiTmp,...x})=>x))); } catch(e) {} };
-function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2600); }
+function toast(t,ms=2600){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),ms); }
 function setStatus(s,pesan){
   const el=$('#status'); el.dataset.s=s;
   el.querySelector('span').textContent = {ok:'Tersinkron',sync:'Menyinkronkan…',err:'Gagal · coba lagi',lokal:'Mode lokal'}[s];
@@ -284,7 +304,7 @@ function render(){
       html += `<div class="tgl"><b>${label}</b><span>${total ? 'Keluar ' + rp(total) : ''}</span></div>`;
     }
     const m = x.tipe==='masuk';
-    const bk = x.bukti ? `<a class="bukti" href="${esc(x.bukti)}" target="_blank" rel="noopener">${IKON_BUKTI}Bukti</a>` : x.buktiTmp ? '<span class="bukti up">Mengunggah bukti…</span>' : '';
+    const bk = (x.bukti || x.buktiTmp) ? `<button type="button" class="bukti${x.bukti?'':' up'}" data-lihat="${esc(x.id)}">${IKON_BUKTI}Lihat bukti${x.bukti?'':' (mengunggah…)'}</button>` : '';
     html += `<div class="baris"><i style="background:${warna(x.tipe,x.kategori)}"></i>
       <div><div class="k">${esc(x.kategori)}</div>${x.catatan?`<div class="c">${esc(x.catatan)}</div>`:''}${bk}</div>
       <div class="j ${m?'m':'k'}">${m?'+':'−'}${rp(x.jumlah)}</div>
@@ -337,8 +357,9 @@ $('#simpan').onclick = async () => {
   render(); toast(tipe==='keluar' ? 'Pengeluaran tersimpan' : 'Pemasukan tersimpan');
   if(terhubung){
     setStatus('sync');
-    try{ const r = await api({action:'add', item:kirim, buktiData:foto}); delete item.buktiTmp; if(r.bukti) item.bukti = r.bukti; simpanLokal(); render(); setStatus('ok'); }
-    catch(e){ items = items.filter(x=>x.id!==item.id); simpanLokal(); render(); setStatus('err', e.message); toast('Gagal menyimpan ke Sheets'); }
+    try{ const r = await api({action:'add', item:kirim, buktiData:foto}); delete item.buktiTmp; if(r.bukti) item.bukti = r.bukti;
+      if(r.buktiError) toast('Transaksi tersimpan, tapi bukti gagal diunggah: ' + r.buktiError, 7000); simpanLokal(); render(); setStatus('ok'); }
+    catch(e){ items = items.filter(x=>x.id!==item.id); simpanLokal(); render(); setStatus('err', e.message); toast('Gagal menyimpan: ' + (e.message || 'cek koneksi'), 6000); }
   }
 };
 
@@ -381,11 +402,33 @@ $('#buktiFile').onchange = async e => {
     $('#buktiPrev').hidden = false; $('#pilihBukti').hidden = true;
   }catch(err){ resetBukti(); toast(err.message); }
 };
-$('#daftar').addEventListener('click', async e => {
-  const a = e.target.closest('a.bukti'); if(!a || !a.getAttribute('href').startsWith('data:')) return;
-  e.preventDefault();
-  const blob = await (await fetch(a.href)).blob(); window.open(URL.createObjectURL(blob), '_blank');
-});
+const idDrive = u => { const m = /\/d\/([^\/?#]+)/.exec(u || ''); return m ? m[1] : null; };
+function lihatBukti(id){
+  const x = items.find(i => i.id === id); if(!x) return;
+  const src = x.bukti || x.buktiTmp; if(!src) return;
+  $('#lbJudul').textContent = x.kategori + ' ' + (x.tipe==='masuk' ? '+' : '−') + rp(x.jumlah);
+  $('#lbInfo').textContent = tglPendek(x.tanggal) + (x.catatan ? ', ' + x.catatan : '');
+  const body = $('#lbBody'), foot = $('#lbFoot');
+  body.innerHTML = ''; foot.innerHTML = '';
+  const load = document.createElement('div'); load.className = 'lb-load'; load.textContent = 'Memuat foto…';
+  const img = new Image(); img.alt = 'Foto bukti transaksi'; img.hidden = true;
+  img.onload = () => { load.remove(); img.hidden = false; };
+  const did = idDrive(src);
+  if(did){
+    img.onerror = () => { body.innerHTML = ''; const f = document.createElement('iframe'); f.src = `https://drive.google.com/file/d/${did}/preview`; f.title = 'Pratinjau bukti'; body.appendChild(f); };
+    img.src = `https://drive.google.com/thumbnail?id=${did}&sz=w1600`;
+    const a = document.createElement('a'); a.href = src; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Buka di Drive'; foot.appendChild(a);
+  } else {
+    img.onerror = () => { load.textContent = 'Foto tidak bisa ditampilkan'; };
+    img.src = src;
+  }
+  body.append(load, img);
+  $('#lb').showModal();
+}
+$('#daftar').addEventListener('click', e => { const b = e.target.closest('[data-lihat]'); if(b) lihatBukti(b.dataset.lihat); });
+$('#lbTutup').onclick = () => $('#lb').close();
+$('#lb').addEventListener('click', e => { if(e.target === e.currentTarget) $('#lb').close(); });
+$('#lb').addEventListener('close', () => { $('#lbBody').innerHTML = ''; });
 window.addEventListener('resize', fit);
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 $('#tanggal').value = keTampil(hariIni());
