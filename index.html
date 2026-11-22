@@ -86,6 +86,8 @@ label{display:block;font-size:13px;color:var(--samar);margin:12px 0 5px}
 .bukti:hover{background:#DCE1F2}.bukti.up{color:var(--samar)}
 [hidden]{display:none!important}
 button.bukti{border:0;cursor:pointer;font-family:inherit}
+button.bukti.tambah{background:none;border:1.5px dashed #C4CAE3;color:var(--samar);padding:2px 9px}
+button.bukti.tambah:hover{border-color:var(--indigo);color:var(--indigo)}
 dialog.lb{border:0;border-radius:22px;padding:0;width:min(94vw,720px);max-width:94vw;background:var(--kertas);color:var(--tinta);overflow:hidden;margin:auto}
 dialog.lb::backdrop{background:rgba(22,24,58,.72)}
 .lb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--garis)}
@@ -117,7 +119,7 @@ dialog.lb::backdrop{background:rgba(22,24,58,.72)}
 .hapus:hover{background:#FDE7EB;color:var(--keluar)}
 .kosong{text-align:center;padding:36px 10px;color:var(--samar);line-height:1.6}
 .kosong b{display:block;font-family:var(--display);font-size:18px;color:var(--tinta);margin-bottom:4px}
-.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,30px);background:var(--tinta);color:#fff;padding:11px 18px;border-radius:99px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:9;max-width:90vw}
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,30px);background:var(--tinta);color:#fff;padding:11px 18px;border-radius:16px;font-size:14px;line-height:1.45;text-align:center;width:max-content;overflow-wrap:anywhere;opacity:0;pointer-events:none;transition:.25s;z-index:9;max-width:90vw}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -180,6 +182,7 @@ dialog.lb::backdrop{background:rgba(22,24,58,.72)}
     <div id="daftar"></div>
   </section>
 </div>
+<input type="file" id="buktiLain" accept="image/*" hidden>
 <dialog class="lb" id="lb" aria-labelledby="lbJudul">
   <div class="lb-head"><div><b id="lbJudul"></b><small id="lbInfo"></small></div><button type="button" class="tutup" id="lbTutup" aria-label="Tutup">×</button></div>
   <div class="lb-body" id="lbBody"></div>
@@ -220,6 +223,7 @@ let buktiData = null;
 const IKON_BUKTI = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l9-9a3.3 3.3 0 0 1 4.7 4.7l-9 9a1.7 1.7 0 0 1-2.4-2.4l8.3-8.3"/></svg>';
 
 const simpanLokal = () => { try { localStorage.setItem('catatan_uang', JSON.stringify(items.map(({buktiTmp,...x})=>x))); } catch(e) {} };
+const pesanGalat = m => /izin|permission|authori[sz]/i.test(m||'') ? 'Script belum punya izin Drive penuh. Jalankan izinDrive di Apps Script, lalu deploy versi baru.' : (m || 'cek koneksi');
 function toast(t,ms=2600){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),ms); }
 function setStatus(s,pesan){
   const el=$('#status'); el.dataset.s=s;
@@ -304,7 +308,7 @@ function render(){
       html += `<div class="tgl"><b>${label}</b><span>${total ? 'Keluar ' + rp(total) : ''}</span></div>`;
     }
     const m = x.tipe==='masuk';
-    const bk = (x.bukti || x.buktiTmp) ? `<button type="button" class="bukti${x.bukti?'':' up'}" data-lihat="${esc(x.id)}">${IKON_BUKTI}Lihat bukti${x.bukti?'':' (mengunggah…)'}</button>` : '';
+    const bk = (x.bukti || x.buktiTmp) ? `<button type="button" class="bukti${x.bukti?'':' up'}" data-lihat="${esc(x.id)}">${IKON_BUKTI}Lihat bukti${x.bukti?'':' (mengunggah…)'}</button>` : `<button type="button" class="bukti tambah" data-tambah="${esc(x.id)}">${IKON_PLUS}Tambah bukti</button>`;
     html += `<div class="baris"><i style="background:${warna(x.tipe,x.kategori)}"></i>
       <div><div class="k">${esc(x.kategori)}</div>${x.catatan?`<div class="c">${esc(x.catatan)}</div>`:''}${bk}</div>
       <div class="j ${m?'m':'k'}">${m?'+':'−'}${rp(x.jumlah)}</div>
@@ -358,8 +362,8 @@ $('#simpan').onclick = async () => {
   if(terhubung){
     setStatus('sync');
     try{ const r = await api({action:'add', item:kirim, buktiData:foto}); delete item.buktiTmp; if(r.bukti) item.bukti = r.bukti;
-      if(r.buktiError) toast('Transaksi tersimpan, tapi bukti gagal diunggah: ' + r.buktiError, 7000); simpanLokal(); render(); setStatus('ok'); }
-    catch(e){ items = items.filter(x=>x.id!==item.id); simpanLokal(); render(); setStatus('err', e.message); toast('Gagal menyimpan: ' + (e.message || 'cek koneksi'), 6000); }
+      if(r.buktiError) toast('Transaksi tersimpan, tapi bukti gagal diunggah. ' + pesanGalat(r.buktiError), 7000); simpanLokal(); render(); setStatus('ok'); }
+    catch(e){ items = items.filter(x=>x.id!==item.id); simpanLokal(); render(); setStatus('err', e.message); toast('Gagal menyimpan. ' + pesanGalat(e.message), 6000); }
   }
 };
 
@@ -401,6 +405,31 @@ $('#buktiFile').onchange = async e => {
     $('#buktiImg').src = buktiData; $('#buktiNama').textContent = f.name;
     $('#buktiPrev').hidden = false; $('#pilihBukti').hidden = true;
   }catch(err){ resetBukti(); toast(err.message); }
+};
+const IKON_PLUS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+let tambahId = null;
+$('#daftar').addEventListener('click', e => {
+  const b = e.target.closest('[data-tambah]'); if(!b) return;
+  tambahId = b.dataset.tambah; $('#buktiLain').click();
+});
+$('#buktiLain').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if(!f || !tambahId) return;
+  const id = tambahId; tambahId = null;
+  const x = items.find(i => i.id === id); if(!x) return;
+  let data;
+  try{ data = await kompres(f); }catch(err){ return toast(err.message); }
+  if(!terhubung){ x.bukti = data; simpanLokal(); render(); toast('Bukti ditambahkan'); return; }
+  x.buktiTmp = data; render(); setStatus('sync');
+  try{
+    const r = await api({action:'bukti', id, buktiData:data});
+    const y = items.find(i => i.id === id) || x;
+    delete y.buktiTmp; y.bukti = r.bukti || ''; simpanLokal(); render(); setStatus('ok'); toast('Bukti terunggah');
+  }catch(err){
+    const y = items.find(i => i.id === id) || x;
+    delete y.buktiTmp; render(); setStatus('err', err.message);
+    toast('Gagal mengunggah bukti. ' + pesanGalat(err.message), 7000);
+  }
 };
 const idDrive = u => { const m = /\/d\/([^\/?#]+)/.exec(u || ''); return m ? m[1] : null; };
 function lihatBukti(id){
